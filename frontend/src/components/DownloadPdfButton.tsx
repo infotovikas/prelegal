@@ -23,7 +23,7 @@ export default function DownloadPdfButton({
 
     try {
       const [{ default: jsPDF }, { default: html2canvas }] =
-        await Promise.all([import("jspdf"), import("html2canvas")]);
+        await Promise.all([import("jspdf"), import("html2canvas-pro")]);
 
       const canvas = await html2canvas(element, {
         scale: 2,
@@ -52,7 +52,24 @@ export default function DownloadPdfButton({
         heightLeft -= pageHeight;
       }
 
-      pdf.save(fileName);
+      // Force a raw file download instead of pdf.save(), which hands Chrome
+      // a Blob typed "application/pdf" — if the browser is set to auto-open
+      // PDFs after download, it then tries to navigate to the saved
+      // file:// path and shows "This site can't be reached" even though the
+      // download itself succeeded. Re-typing the blob as
+      // "application/octet-stream" keeps this a plain save.
+      const pdfBlob = pdf.output("blob");
+      const downloadBlob = new Blob([pdfBlob], {
+        type: "application/octet-stream",
+      });
+      const blobUrl = URL.createObjectURL(downloadBlob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
     } catch (err) {
       console.error(err);
       setError("Could not generate the PDF. Please try again.");
